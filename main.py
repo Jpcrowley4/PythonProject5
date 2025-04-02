@@ -653,14 +653,28 @@ try:
                 """, unsafe_allow_html=True)
 
             else:
+                # Replace the multi-day prediction section (starting around line 900) with this improved implementation:
+
+                # Replace the entire multi-day prediction and visualization section with this code
+                # Insert this where you handle multi-day predictions (around line 900)
+
                 # For multi-day predictions, we need to forecast iteratively
                 multi_day_predictions = []
                 multi_day_dates = []
 
+                # Add debugging lines
+                st.markdown("### Debug Information")
+                debug_container = st.empty()
+                debug_container.info("Starting multi-day prediction process...")
+
                 # Start with the last known sequence
-                curr_sequence = scaled_features.iloc[-sequence_length:].values
+                curr_sequence = scaled_features.iloc[-sequence_length:].values.copy()
                 curr_date = data.index[-1]
                 last_close = float(data['Close'].iloc[-1])
+
+                # For debugging: Print initial values
+                debug_text = f"Last known date: {curr_date}\nLast closing price: ${last_close:.2f}\n"
+                debug_container.info(debug_text)
 
                 # Loop for the number of days we want to predict
                 for i in range(days_to_predict):
@@ -681,87 +695,164 @@ try:
                     multi_day_predictions.append(next_pred)
                     multi_day_dates.append(curr_date)
 
+                    # Debug: Print prediction for this day
+                    debug_text += f"Day {i + 1} prediction: {curr_date.strftime('%a, %b %d')} - ${next_pred:.2f}\n"
+
                     # Now update the sequence for the next prediction
-                    # We need to roll the window forward, dropping the oldest entry
-                    # and adding our prediction as the newest entry
+                    # Shift the sequence by one (drop oldest day)
+                    curr_sequence = np.roll(curr_sequence, -1, axis=0)
 
-                    # First, get a copy of the current sequence and reshape to 2D
-                    new_sequence = curr_sequence.copy()
+                    # The last row needs to be updated with our new prediction
+                    # Just update the Close price for simplicity
+                    close_idx = features.index('Close')
+                    curr_sequence[-1, close_idx] = next_pred_scaled[0][0]
 
-                    # Roll the values (drop first row, shift others up)
-                    for col in range(curr_sequence.shape[1]):
-                        new_sequence[:-1, col] = new_sequence[1:, col]
+                    # Update any other features if needed (for simplicity, we'll keep them the same)
+                    # This is a simplified approach - in a real model you might want to update other features too
 
-                    # Create a new data point with the predicted value and estimated other features
-                    # For simplicity, we'll keep other features (like volume) unchanged from latest known values
-                    latest_features = scaled_features.iloc[-1].copy()
-                    latest_features['Close'] = next_pred_scaled[0][0]  # Update the Close price with our prediction
+                # Update debug info with all predictions
+                debug_container.info(debug_text)
 
-                    # Add this new data point to the end of our sequence
-                    new_sequence[-1, :] = list(latest_features)
+                # Additional debug: Print array shapes and final values
+                st.write(f"Number of prediction dates: {len(multi_day_dates)}")
+                st.write(f"Number of prediction values: {len(multi_day_predictions)}")
 
-                    # Update curr_sequence for next iteration
-                    curr_sequence = new_sequence
+                # Verify we have valid data for plotting
+                if len(multi_day_dates) == 0 or len(multi_day_predictions) == 0:
+                    st.error("No prediction data generated. Please check your model.")
+                    st.stop()
 
-                # Now create a line chart with the predictions
+                # Make sure both arrays have the same length
+                if len(multi_day_dates) != len(multi_day_predictions):
+                    st.error(
+                        f"Data length mismatch: dates={len(multi_day_dates)}, predictions={len(multi_day_predictions)}")
+                    st.stop()
+
+                # Display the raw prediction data in a table for debugging
+                debug_df = pd.DataFrame({
+                    'Date': [d.strftime('%Y-%m-%d') for d in multi_day_dates],
+                    'Prediction': multi_day_predictions
+                })
+                st.write("Raw prediction data:")
+                st.dataframe(debug_df)
+
+                # Replace just the visualization part of your code (after the predictions are generated)
+                # This starts after the line where debug_df is displayed
+
+                # Convert prediction dates to strings for better compatibility with plotly
+                date_strings = [d.strftime('%Y-%m-%d') for d in multi_day_dates]
+
+                # Convert all data to native Python types to avoid pandas-related issues
+                predictions_native = [float(p) for p in multi_day_predictions]
+
+                # Get historical data
+                historical_lookback = min(30, len(data))
+                historical_dates = data.index[-historical_lookback:]
+                historical_prices = [float(p) for p in data['Close'].iloc[-historical_lookback:].values]
+                historical_date_strings = [d.strftime('%Y-%m-%d') for d in historical_dates]
+
+                # Calculate error bounds
+                mae = float(np.mean(np.abs(test_predictions - y_test_actual)))
+                upper_bound = [p + mae for p in predictions_native]
+                lower_bound = [p - mae for p in predictions_native]
+
+                # Create a completely new figure
+                st.markdown("### Stock Price Prediction")
+
+                # Use pure Plotly instead of go.Figure for better control
+                import plotly.graph_objects as go
+                from plotly.subplots import make_subplots
+
                 fig_multi = go.Figure()
 
-                # Add historical prices (last 30 days)
-                historical_dates = data.index[-30:]
-                historical_prices = data['Close'].iloc[-30:].values
+                # Add historical data
+                fig_multi.add_trace(
+                    go.Scatter(
+                        x=historical_date_strings,
+                        y=historical_prices,
+                        mode='lines',
+                        name='Historical Prices',
+                        line=dict(color='blue', width=2)
+                    )
+                )
 
-                fig_multi.add_trace(go.Scatter(
-                    x=historical_dates,
-                    y=historical_prices,
-                    mode='lines',
-                    name='Historical Prices',
-                    line=dict(color='blue', width=2)
-                ))
+                # Add prediction line
+                fig_multi.add_trace(
+                    go.Scatter(
+                        x=date_strings,
+                        y=predictions_native,
+                        mode='lines+markers',
+                        name='Predictions',
+                        line=dict(color='red', width=2, dash='dash'),
+                        marker=dict(size=8)
+                    )
+                )
 
-                # Add predictions
-                fig_multi.add_trace(go.Scatter(
-                    x=multi_day_dates,
-                    y=multi_day_predictions,
-                    mode='lines+markers',
-                    name='Predictions',
-                    line=dict(color='red', width=2, dash='dash'),
-                    marker=dict(size=8, symbol='circle')
-                ))
+                # Add upper bound
+                fig_multi.add_trace(
+                    go.Scatter(
+                        x=date_strings,
+                        y=upper_bound,
+                        mode='lines',
+                        line=dict(width=0),
+                        showlegend=False
+                    )
+                )
+
+                # Add lower bound with fill
+                fig_multi.add_trace(
+                    go.Scatter(
+                        x=date_strings,
+                        y=lower_bound,
+                        mode='lines',
+                        line=dict(width=0),
+                        fill='tonexty',
+                        fillcolor='rgba(255,0,0,0.1)',
+                        name='Prediction Range'
+                    )
+                )
 
                 # Update layout
                 fig_multi.update_layout(
                     title=f"{prediction_timeframe} Price Prediction",
                     xaxis_title="Date",
                     yaxis_title="Price ($)",
+                    yaxis=dict(tickprefix="$"),
                     height=500,
                     template="plotly_white",
                     hovermode="x unified",
-                    yaxis=dict(tickprefix="$")
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                 )
 
-                # Add prediction range (shaded area)
-                mae = float(np.mean(np.abs(test_predictions - y_test_actual)))
+                # Display the chart
+                st.plotly_chart(fig_multi, use_container_width=True)
 
-                # Upper bound
-                fig_multi.add_trace(go.Scatter(
-                    x=multi_day_dates,
-                    y=[p + mae for p in multi_day_predictions],
-                    fill=None,
-                    mode='lines',
-                    line=dict(color='rgba(255,0,0,0)'),
-                    showlegend=False
-                ))
+                # After visualization is complete, clear the debug information
+                debug_container.empty()
 
                 # Lower bound
                 fig_multi.add_trace(go.Scatter(
                     x=multi_day_dates,
-                    y=[p - mae for p in multi_day_predictions],
+                    y=lower_bound,
                     fill='tonexty',
                     mode='lines',
                     line=dict(color='rgba(255,0,0,0)'),
                     fillcolor='rgba(255,0,0,0.1)',
                     name='Prediction Range'
                 ))
+
+                # Ensure the X-axis formatting is consistent
+                fig_multi.update_xaxes(
+                    rangeslider_visible=False,
+                    rangeselector=dict(
+                        buttons=list([
+                            dict(count=7, label="1w", step="day", stepmode="backward"),
+                            dict(count=14, label="2w", step="day", stepmode="backward"),
+                            dict(count=1, label="1m", step="month", stepmode="backward"),
+                            dict(step="all")
+                        ])
+                    )
+                )
 
                 st.plotly_chart(fig_multi, use_container_width=True)
 
