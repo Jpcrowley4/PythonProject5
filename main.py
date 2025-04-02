@@ -431,6 +431,85 @@ try:
             # Prepare data for LSTM model
             status.info("Preparing data for prediction...")
 
+
+            def apply_realistic_prediction(ticker, raw_prediction, current_price, days_ahead=3):
+                # Get historical data - use your existing data if available
+                # If you already have this data loaded, you don't need to download it again
+                data = yf.download(ticker, period="1y") if 'data' not in locals() else data
+
+                # Make sure current_price is a simple float
+                current_price = float(current_price)
+                raw_prediction = float(raw_prediction)
+
+                # Calculate historical volatility (annualized standard deviation)
+                daily_returns = data['Close'].pct_change().dropna()
+                daily_volatility = float(daily_returns.std())
+
+                # Calculate expected volatility for prediction period
+                period_volatility = daily_volatility * np.sqrt(days_ahead)
+
+                # Calculate moving averages - use existing if available
+                if '20-Day Average' in data.columns:
+                    ma_20 = float(data['20-Day Average'].iloc[-1])
+                else:
+                    ma_20 = float(data['Close'].rolling(window=20).mean().iloc[-1])
+
+                if '50-Day Average' in data.columns:
+                    ma_50 = float(data['50-Day Average'].iloc[-1])
+                else:
+                    ma_50 = float(data['Close'].rolling(window=50).mean().iloc[-1])
+
+                # Calculate mean reversion target (weighted average of price and MAs)
+                # More weight to current price for short-term predictions
+                if days_ahead <= 3:
+                    mean_target = 0.5 * current_price + 0.3 * ma_20 + 0.2 * ma_50
+                else:
+                    # More weight to longer-term MA for longer predictions
+                    mean_target = 0.3 * current_price + 0.3 * ma_20 + 0.4 * ma_50
+
+                # Calculate maximum reasonable price change based on volatility
+                # Use 2 standard deviations (95% confidence interval)
+                max_change = period_volatility * 2
+
+                # Calculate bounds
+                upper_bound = current_price * (1 + max_change)
+                lower_bound = current_price * (1 - max_change)
+
+                # Apply mean reversion - pull predictions toward the mean target
+                # The strength of pull increases with the deviation from mean
+                deviation = abs(raw_prediction - mean_target) / mean_target
+
+                # Calculate mean reversion strength (0-1)
+                # More extreme predictions get pulled back harder
+                if deviation > 0.1:  # More than 10% from mean target
+                    reversion_strength = 0.7  # Strong pull back
+                elif deviation > 0.05:  # 5-10% from mean target
+                    reversion_strength = 0.5  # Moderate pull back
+                else:
+                    reversion_strength = 0.3  # Light pull back
+
+                # Apply mean reversion
+                adjusted_prediction = (raw_prediction * (1 - reversion_strength) +
+                                       mean_target * reversion_strength)
+
+                # Finally, ensure prediction is within volatility bounds
+                final_prediction = max(min(adjusted_prediction, upper_bound), lower_bound)
+
+                # Return both final prediction and debug info
+                return {
+                    "final_prediction": final_prediction,
+                    "debug": {
+                        "raw_prediction": raw_prediction,
+                        "mean_target": mean_target,
+                        "upper_bound": upper_bound,
+                        "lower_bound": lower_bound,
+                        "reversion_strength": reversion_strength,
+                        "daily_volatility": daily_volatility,
+                        "max_change_pct": max_change * 100
+                    }
+                }
+
+
             # Calculate technical indicators for better predictions
             # Calculate RSI (Relative Strength Index - indicates overbought/oversold conditions)
             delta = data['Close'].diff()
@@ -547,6 +626,11 @@ try:
                 next_day_pred_scaled = model.predict(last_sequence)
                 next_day_pred = float(price_scaler.inverse_transform(next_day_pred_scaled)[0][0])
 
+                last_close = float(data['Close'].iloc[-1])
+
+                prediction_result = apply_realistic_prediction(ticker_input, next_day_pred, last_close, days_ahead=1)
+
+                next_day_pred = prediction_result['final_prediction']
                 # Create date for next prediction
                 last_date = data.index[-1]
                 next_date = last_date + pd.Timedelta(days=1)
@@ -685,6 +769,11 @@ try:
                     # Predict the next day
                     next_pred_scaled = model.predict(curr_sequence_reshaped)
                     next_pred = float(price_scaler.inverse_transform(next_pred_scaled)[0][0])
+
+                    current_price = last_close if i == 0 else multi_day_predictions[-1]
+
+                    prediction_result = apply_realistic_prediction(ticker_input, next_pred, last_close,days_ahead=i + 1)
+                    next_pred = prediction_result["final_prediction"]
 
                     # Move date forward (accounting for weekends)
                     curr_date = curr_date + pd.Timedelta(days=1)
@@ -830,31 +919,7 @@ try:
                 # After visualization is complete, clear the debug information
                 debug_container.empty()
 
-                # Lower bound
-                fig_multi.add_trace(go.Scatter(
-                    x=multi_day_dates,
-                    y=lower_bound,
-                    fill='tonexty',
-                    mode='lines',
-                    line=dict(color='rgba(255,0,0,0)'),
-                    fillcolor='rgba(255,0,0,0.1)',
-                    name='Prediction Range'
-                ))
 
-                # Ensure the X-axis formatting is consistent
-                fig_multi.update_xaxes(
-                    rangeslider_visible=False,
-                    rangeselector=dict(
-                        buttons=list([
-                            dict(count=7, label="1w", step="day", stepmode="backward"),
-                            dict(count=14, label="2w", step="day", stepmode="backward"),
-                            dict(count=1, label="1m", step="month", stepmode="backward"),
-                            dict(step="all")
-                        ])
-                    )
-                )
-
-                st.plotly_chart(fig_multi, use_container_width=True)
 
                 # Calculate overall change from current price to final prediction
                 final_pred = multi_day_predictions[-1]
