@@ -678,7 +678,7 @@ try:
                 """, unsafe_allow_html=True)
 
                 # Create visualization of predictions vs actual
-                st.markdown("<div class='subheader'>How Accurate Is Our Model?</div>", unsafe_allow_html=True)
+                st.markdown("<div class='subheader'>How Accurate Is The Model?</div>", unsafe_allow_html=True)
 
                 # Plot actual vs predicted test data
                 fig_pred = go.Figure()
@@ -729,10 +729,10 @@ try:
                     <strong>📈 Reading the Chart Above:</strong>
                     <ul>
                         <li><strong>Blue line:</strong> Actual historical prices</li>
-                        <li><strong>Red line:</strong> What our model would have predicted</li>
+                        <li><strong>Red line:</strong> What the model would have predicted</li>
                         <li><strong>Green star:</strong> Tomorrow's prediction</li>
                     </ul>
-                    <p>The closer the red line follows the blue line, the more accurate our model is.</p>
+                    <p>The closer the red line follows the blue line, the more accurate the model is.</p>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -1120,6 +1120,8 @@ try:
 
                 # Get industry average P/E for comparison
                 industry_pe = ticker_info.get('industryPE', None)
+
+
 
                 # Create a gauge chart to show if P/E is high or low compared to industry
                 pe_status = "NEUTRAL"
