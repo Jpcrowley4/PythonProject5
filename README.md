@@ -2,7 +2,7 @@ Stock Price Predictor
 
 **Project Overview**
 
-This application uses deep learning (LSTM neural networks) to predict stock price movements based on historical patterns. It provides:
+This application uses deep learning (LSTM neural networks) to predict stock price movements based on historical patterns.
 
 - Stock price predictions for various time frames
 - Technical analysis with key market indicators
