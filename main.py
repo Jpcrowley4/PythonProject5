@@ -1144,4 +1144,4 @@ except Exception as e:
 
 #Requirments: streamlit==1.28.0
 #yfinance==0.2.31, pandas==2.1.1, numpy==1.25.2, tensorflow==2.13.0, plotly==5.17.0, scikit-learn==1.3.0, matplotlib==3.7.2
-#To run streamlit, use streamlit run main.py in terminal
+#To run, use streamlit run main.py in terminal
