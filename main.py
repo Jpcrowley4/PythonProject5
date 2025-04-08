@@ -1117,11 +1117,11 @@ try:
 
     This model uses a deep learning structure called Long Short-Term Memory (LSTM) neural networks, which finds patterns in sequential data.
 
-    Key features of the LSTM model:
-    - **Memory Capability:** Can remember important patterns while forgetting irrelevant ones.
-    - **Multi-layered:** Uses multiple processing layers to learn increasingly complex patterns.
+    Key features of the model:
+    - **Memory Capability:** Can remember important patterns and forget irrelevant ones.
+    - **Multi-layered:** Uses multiple processing layers to learn patterns.
     - **Adaptive:** Continually updates its understanding as it processes more data.
-    - **Feature Engineering:** Automatically identifies which indicators matter most.
+    - **Feature Engineering:** Automatically identifies which indicators matter the most.
 
     The model is trained on historical data and tested against known outcomes before making future predictions.
         """)
@@ -1131,12 +1131,17 @@ try:
     **How accurate is it?**
 
     The predictions are generally within 2-5% of the actual price under normal market conditions. However, there are important limitations:
-    - **Cannot predict news events:** Earnings surprises, product announcements, or global events can cause unexpected price movements.
+    - **Cannot predict news events:** Tarrifs,earnings surprises, product announcements, or global events can cause unexpected price movements.
     - **Works best with stable stocks:** Companies with erratic price histories are harder to predict.
-    - **Short-term only:** The further into the future you try to predict, the less accurate you become.
+    - **Short-term only:** The further into the future you try to predict, the less accurate the model becomes.
         """)
 
 
 except Exception as e:
     st.error(f"An error occurred: {str(e)}")
     st.stop()
+
+
+#Requirments: streamlit==1.28.0
+#yfinance==0.2.31, pandas==2.1.1, numpy==1.25.2, tensorflow==2.13.0, plotly==5.17.0, scikit-learn==1.3.0, matplotlib==3.7.2
+#To run streamlit, use streamlit run main.py in terminal
