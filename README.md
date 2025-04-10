@@ -29,14 +29,6 @@ Features
 ## Running the Application
 
 Start the Streamlit server with:
-```
+
 streamlit run main.py
-```
 
-
-Future Improvements
-
-- Add portfolio tracking functionality
-- Enhance prediction accuracy with additional features
-- Add comparison of multiple stocks
-- Create alerts for significant price movements
